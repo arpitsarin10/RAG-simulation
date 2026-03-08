@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RAG Simulator</title>
+
+<style>
+
+body{
+font-family: Inter, system-ui, sans-serif;
+background:#0f172a;
+color:#e2e8f0;
+margin:0;
+padding:30px;
+}
+
+h1{
+text-align:center;
+margin-bottom:10px;
+}
+
+.container{
+max-width:1100px;
+margin:auto;
+}
+
+.card{
+background:#1e293b;
+border-radius:12px;
+padding:20px;
+margin-bottom:20px;
+box-shadow:0 10px 25px rgba(0,0,0,0.2);
+}
+
+input{
+width:100%;
+padding:12px;
+border-radius:8px;
+border:none;
+font-size:16px;
+margin-top:10px;
+}
+
+button{
+background:#38bdf8;
+border:none;
+padding:10px 16px;
+border-radius:8px;
+margin-top:10px;
+cursor:pointer;
+font-weight:600;
+}
+
+button:hover{
+background:#0ea5e9;
+}
+
+.stage{
+display:none;
+margin-top:10px;
+}
+
+.stage.active{
+display:block;
+}
+
+.vector{
+font-family:monospace;
+background:#020617;
+padding:10px;
+border-radius:6px;
+margin-top:8px;
+}
+
+.doc{
+background:#020617;
+padding:12px;
+border-radius:6px;
+margin-top:8px;
+}
+
+.pipeline{
+display:grid;
+grid-template-columns: repeat(3,1fr);
+gap:12px;
+margin-top:10px;
+}
+
+.pipeline div{
+background:#020617;
+padding:10px;
+border-radius:6px;
+text-align:center;
+font-size:14px;
+}
+
+.highlight{
+border:2px solid #38bdf8;
+}
+
+.answer{
+font-size:16px;
+line-height:1.5;
+}
+
+footer{
+text-align:center;
+opacity:0.6;
+margin-top:20px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>RAG Pipeline Simulator</h1>
+<p style="text-align:center;opacity:0.7">Interactive demo of Retrieval Augmented Generation</p>
+
+<div class="card">
+
+<b>1 - Ask a question</b>
+
+<input id="query" placeholder="Example: What is retrieval augmented generation?" />
+
+<button onclick="startRAG()">Run RAG</button>
+
+</div>
+
+<div class="card stage" id="embeddingStage">
+
+<b>2 - Convert query to embedding vector</b>
+
+<div class="vector" id="queryVector"></div>
+
+</div>
+
+<div class="card stage" id="searchStage">
+
+<b>3 - Vector similarity search</b>
+
+<div class="pipeline" id="vectorDB"></div>
+
+</div>
+
+<div class="card stage" id="retrievalStage">
+
+<b>4 - Retrieved documents</b>
+
+<div id="retrievedDocs"></div>
+
+</div>
+
+<div class="card stage" id="promptStage">
+
+<b>5 - Augmented prompt sent to LLM</b>
+
+<div class="vector" id="prompt"></div>
+
+</div>
+
+<div class="card stage" id="answerStage">
+
+<b>6 - Generated answer</b>
+
+<div class="answer" id="answer"></div>
+
+</div>
+
+<footer>
+RAG learning simulator - embeddings + retrieval + LLM
+</footer>
+
+</div>
+
+<script>
+
+const docs = [
+
+{
+text:"Retrieval augmented generation (RAG) improves LLM answers by retrieving relevant documents from external knowledge bases."
+},
+
+{
+text:"Embeddings convert text into numerical vectors so semantic similarity can be measured."
+},
+
+{
+text:"Vector databases store embeddings and allow fast similarity search."
+},
+
+{
+text:"Large language models generate responses using context provided in the prompt."
+},
+
+{
+text:"RAG reduces hallucinations by grounding the model with retrieved knowledge."
+}
+
+]
+
+function randomVector(){
+
+let arr=[]
+
+for(let i=0;i<6;i++){
+arr.push(Math.random().toFixed(2))
+}
+
+return arr
+
+}
+
+function cosineSimilarity(a,b){
+
+let dot=0
+let normA=0
+let normB=0
+
+for(let i=0;i<a.length;i++){
+
+dot+=a[i]*b[i]
+normA+=a[i]*a[i]
+normB+=b[i]*b[i]
+
+}
+
+return dot/(Math.sqrt(normA)*Math.sqrt(normB))
+
+}
+
+docs.forEach(d=>{
+d.vector=randomVector().map(Number)
+})
+
+function startRAG(){
+
+const query=document.getElementById("query").value
+
+if(!query) return
+
+const queryVec=randomVector().map(Number)
+
+document.getElementById("embeddingStage").classList.add("active")
+
+document.getElementById("queryVector").innerText=
+JSON.stringify(queryVec)
+
+setTimeout(()=>search(queryVec,query),700)
+
+}
+
+function search(queryVec,query){
+
+document.getElementById("searchStage").classList.add("active")
+
+const db=document.getElementById("vectorDB")
+db.innerHTML=""
+
+docs.forEach((doc,i)=>{
+
+const sim=cosineSimilarity(queryVec,doc.vector)
+
+doc.score=sim
+
+const div=document.createElement("div")
+
+div.innerHTML=
+"Doc "+(i+1)+"<br>Score: "+sim.toFixed(2)
+
+db.appendChild(div)
+
+})
+
+setTimeout(()=>retrieve(query),700)
+
+}
+
+function retrieve(query){
+
+document.getElementById("retrievalStage").classList.add("active")
+
+const topDocs=docs
+.sort((a,b)=>b.score-a.score)
+.slice(0,2)
+
+const container=document.getElementById("retrievedDocs")
+
+container.innerHTML=""
+
+topDocs.forEach(d=>{
+
+const div=document.createElement("div")
+
+div.className="doc highlight"
+
+div.innerText=d.text
+
+container.appendChild(div)
+
+})
+
+setTimeout(()=>augmentPrompt(query,topDocs),700)
+
+}
+
+function augmentPrompt(query,docs){
+
+document.getElementById("promptStage").classList.add("active")
+
+let context=docs.map(d=>d.text).join(" ")
+
+const prompt=
+"Answer the question using the context below.\n\nContext:\n"
++context+
+"\n\nQuestion:\n"+
+query
+
+document.getElementById("prompt").innerText=prompt
+
+setTimeout(()=>generateAnswer(query,context),700)
+
+}
+
+function generateAnswer(query,context){
+
+document.getElementById("answerStage").classList.add("active")
+
+const answer=
+"Using retrieved knowledge, the system answers: \n\n"+
+"RAG works by retrieving relevant documents from a vector database and providing them as context to a language model so it can generate more accurate responses."
+
+document.getElementById("answer").innerText=answer
+
+}
+
+</script>
+
+</body>
+</html>
